@@ -1,0 +1,3 @@
+# Railway build config — installs FFmpeg for video generation
+[phases.setup]
+aptPkgs = ["ffmpeg"]
