@@ -24,9 +24,9 @@ export async function POST(req) {
   if (buf.length > MAX_BYTES) {
     return NextResponse.json({ error: 'File too large (max 200MB).' }, { status: 400 });
   }
-  const dir = path.join(process.cwd(), 'public', 'uploads');
+  const dir = path.join(process.cwd(), 'data', 'uploads');
   fs.mkdirSync(dir, { recursive: true });
   const name = `${user.id}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
   fs.writeFileSync(path.join(dir, name), buf);
-  return NextResponse.json({ ok: true, media_path: `/uploads/${name}` });
+  return NextResponse.json({ ok: true, media_path: `/api/media/${name}` });
 }
