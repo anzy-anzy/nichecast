@@ -9,9 +9,38 @@ async function tick() {
       method: 'POST',
       headers: SECRET ? { authorization: `Bearer ${SECRET}` } : {},
     });
-    const data = await res.json();
-    if (data.processed > 0) {
-      console.log(new Date().toISOString(), 'published', data.processed, 'post(s)');
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+    if (!res.ok || data.error) {
+      console.error(
+        new Date().toISOString(),
+        `worker call failed: HTTP ${res.status}`,
+        data.error || ''
+      );
+      if (res.status === 401) {
+        console.error('  → WORKER_SECRET mismatch: the web service expects a different secret than this worker sends.');
+      }
+      return;
+    }
+    console.log(
+      new Date().toISOString(),
+      `tick ok — posts published: ${data.processed || 0}, videos rendered: ${data.videosRendered || 0}, ads: ${data.adsRendered || 0}, autopilot queued: ${data.autopilotQueued || 0}`
+    );
+    if (data.videos?.length) {
+      for (const v of data.videos) {
+        if (!v.ok) console.error('  video job failed:', v.error);
+      }
+    }
+    if (data.posts?.length) {
+      for (const p of data.posts) {
+        for (const o of p.outcomes || []) {
+          console.log(`  post ${p.postId} → ${o.platform}: ${o.ok ? 'OK' : 'FAILED — ' + o.detail}`);
+        }
+      }
     }
   } catch (e) {
     console.error(new Date().toISOString(), 'worker error:', e.message);
