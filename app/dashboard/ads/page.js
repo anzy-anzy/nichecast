@@ -1,18 +1,26 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-const TEMPLATES = [
+const AD_TEMPLATES = [
   { name: 'Treadmill walk (viral)', prompt: 'A faceless mannequin-like figure in a smooth matte black full-body suit walking confidently on a treadmill in a minimalist bright studio, wearing the product. Product advertisement style, soft studio lighting, steady camera, fashion showcase, smooth walking motion' },
   { name: '360° product showcase', prompt: 'The product slowly rotating on a pedestal in a premium studio with dramatic spotlight, cinematic product commercial, macro details, luxurious mood' },
   { name: 'Street style walk', prompt: 'A stylish person seen from behind (face never visible) wearing the product, walking through a vibrant city street at golden hour, cinematic fashion film, slow motion' },
   { name: 'Unboxing reveal', prompt: 'Elegant hands opening a premium box revealing the product inside with soft light rays, satisfying unboxing commercial, shallow depth of field' },
 ];
 
-export default function ProductAds() {
+const RES_INFO = { '480p': 'Cheapest', '720p': 'Recommended', '1080p': 'Sharpest' };
+
+export default function MarketingStudio() {
+  const [mode, setMode] = useState('ad'); // 'ad' | 'property_tour' | 'similar'
   const [title, setTitle] = useState('');
-  const [prompt, setPrompt] = useState(TEMPLATES[0].prompt);
+  const [prompt, setPrompt] = useState(AD_TEMPLATES[0].prompt);
   const [format, setFormat] = useState('vertical');
+  const [resolution, setResolution] = useState('720p');
+  const [duration, setDuration] = useState(8);
   const [files, setFiles] = useState([]);
+  const [refUrl, setRefUrl] = useState('');
+  const [refNotes, setRefNotes] = useState('');
+  const [cost, setCost] = useState(null);
   const [ads, setAds] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -30,31 +38,61 @@ export default function ProductAds() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    fetch('/api/estimate-cost', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ resolution, duration: mode === 'property_tour' ? duration : duration }),
+    })
+      .then((r) => r.json())
+      .then(setCost)
+      .catch(() => {});
+  }, [resolution, duration, mode]);
+
+  async function uploadFiles(fileList) {
+    const paths = [];
+    for (const file of fileList) {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await fetch('/api/upload', { method: 'POST', body: fd });
+      const d = await up.json();
+      if (!up.ok) throw new Error(d.error || 'Photo upload failed');
+      paths.push(d.media_path);
+    }
+    return paths;
+  }
+
   async function submit(e) {
     e.preventDefault();
-    if (!files.length) return setError('Upload at least one product photo.');
     setBusy(true);
     setError('');
     setMsg('');
     try {
-      const photos = [];
-      for (const file of files.slice(0, 5)) {
-        const fd = new FormData();
-        fd.append('file', file);
-        const up = await fetch('/api/upload', { method: 'POST', body: fd });
-        const d = await up.json();
-        if (!up.ok) throw new Error(d.error || 'Photo upload failed');
-        photos.push(d.media_path);
+      if (mode === 'similar') {
+        if (!refUrl) throw new Error('Paste a video link.');
+        const res = await fetch('/api/ads/similar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url: refUrl, notes: refNotes, resolution, duration, format }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        setMsg(`Queued — inspired by "${data.refTitle}". Watch below.`);
+        setRefUrl('');
+        setRefNotes('');
+      } else {
+        if (!files.length) throw new Error(mode === 'property_tour' ? 'Upload at least 2 room/area photos.' : 'Upload at least one product photo.');
+        const photos = await uploadFiles(files.slice(0, 8));
+        const res = await fetch('/api/ads', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title, prompt, photos, format, resolution, duration, mode }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to queue');
+        setMsg('Queued! Rendering in the background — watch below.');
+        setFiles([]);
       }
-      const res = await fetch('/api/ads', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title, prompt, photos, format }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to queue ad');
-      setMsg('Ad queued! The worker generates it in the background — watch below.');
-      setFiles([]);
       load();
     } catch (err) {
       setError(String(err.message || err));
@@ -71,6 +109,7 @@ export default function ProductAds() {
         media_path: ad.video_path,
         account_ids: accounts.map((a) => a.id),
         scheduled_at: new Date().toISOString(),
+        ai_generated: true,
       }),
     });
     if (res.ok) setMsg('Posted to queue — see Post Queue.');
@@ -83,32 +122,59 @@ export default function ProductAds() {
 
   return (
     <div>
-      <h1>🛍️ Product Ads</h1>
-      <p className="sub">
-        Upload product photos (clothes, caps, watches, hair, anything) + pick a scene — get an AI ad video.
-        Without a FAL_KEY it builds a product slideshow (mock); with one it generates real AI video (~$0.30-1/video).
-      </p>
+      <h1>🛍️ Marketing Studio</h1>
+      <p className="sub">AI ad videos, property/restaurant tours, or "make one like this" from a link — pick resolution and duration, see the cost before you generate.</p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {[
+          ['ad', '📦 Product Ad'],
+          ['property_tour', '🏠 Property / Restaurant Tour'],
+          ['similar', '🔗 Make One Like This'],
+        ].map(([m, label]) => (
+          <span key={m} className={`platform-chip ${mode === m ? 'on' : ''}`} onClick={() => setMode(m)}>{label}</span>
+        ))}
+      </div>
 
       <div className="card">
         <form onSubmit={submit}>
-          <label>Product photos (up to 5 — hold ⌘ to select several)</label>
-          <input type="file" multiple accept=".jpg,.jpeg,.png" onChange={(e) => setFiles([...(e.target.files || [])].slice(0, 5))} />
-          {files.length > 0 && <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>{files.map((f) => f.name).join(' · ')}</p>}
+          {mode !== 'similar' && (
+            <>
+              <label>{mode === 'property_tour' ? 'Room / area photos (2-8 — hold ⌘ to select several)' : 'Product photos (up to 5)'}</label>
+              <input type="file" multiple accept=".jpg,.jpeg,.png" onChange={(e) => setFiles([...(e.target.files || [])].slice(0, 8))} />
+              {files.length > 0 && <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>{files.map((f) => f.name).join(' · ')}</p>}
 
-          <label>Ad title / product name</label>
-          <input placeholder="Summer drop — red cap + white tee" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <label>Title</label>
+              <input placeholder={mode === 'property_tour' ? 'Modern 3-bedroom villa, Douala' : 'Summer drop — red cap + white tee'} value={title} onChange={(e) => setTitle(e.target.value)} />
 
-          <label>Scene template</label>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-            {TEMPLATES.map((t) => (
-              <span key={t.name} className={`platform-chip ${prompt === t.prompt ? 'on' : ''}`} onClick={() => setPrompt(t.prompt)}>
-                {t.name}
-              </span>
-            ))}
-          </div>
+              {mode === 'ad' && (
+                <>
+                  <label>Scene template</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                    {AD_TEMPLATES.map((t) => (
+                      <span key={t.name} className={`platform-chip ${prompt === t.prompt ? 'on' : ''}`} onClick={() => setPrompt(t.prompt)}>{t.name}</span>
+                    ))}
+                  </div>
+                </>
+              )}
 
-          <label>Scene prompt (edit freely — describe exactly what should happen)</label>
-          <textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+              <label>{mode === 'property_tour' ? 'Tour style / description' : 'Scene prompt (edit freely)'}</label>
+              <textarea
+                rows={3}
+                value={mode === 'property_tour' ? (prompt.startsWith('A faceless') ? '' : prompt) : prompt}
+                placeholder={mode === 'property_tour' ? 'Bright, spacious, modern finishes, natural light throughout' : ''}
+                onChange={(e) => setPrompt(e.target.value)}
+              />
+            </>
+          )}
+
+          {mode === 'similar' && (
+            <>
+              <label>Paste a video link (YouTube / TikTok / Vimeo)</label>
+              <input placeholder="https://www.youtube.com/watch?v=..." value={refUrl} onChange={(e) => setRefUrl(e.target.value)} />
+              <label>Anything to change or add? (optional)</label>
+              <input placeholder="e.g. use our product colors, more energetic" value={refNotes} onChange={(e) => setRefNotes(e.target.value)} />
+            </>
+          )}
 
           <div className="row">
             <div>
@@ -118,10 +184,31 @@ export default function ProductAds() {
                 <option value="horizontal">Horizontal (YouTube)</option>
               </select>
             </div>
+            <div>
+              <label>Resolution</label>
+              <select value={resolution} onChange={(e) => setResolution(e.target.value)}>
+                <option value="480p">480p — {RES_INFO['480p']}</option>
+                <option value="720p">720p — {RES_INFO['720p']}</option>
+                <option value="1080p">1080p — {RES_INFO['1080p']}</option>
+              </select>
+            </div>
+            <div>
+              <label>Duration</label>
+              <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+                {[5, 8, 10, 15, 20, 30].map((n) => <option key={n} value={n}>{n}s</option>)}
+              </select>
+            </div>
           </div>
 
+          {cost && (
+            <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+              Estimated cost: <strong>${cost.cost}</strong>{' '}
+              {!cost.liveGeneration && '— no FAL_KEY set, will render a free mock preview instead'}
+            </p>
+          )}
+
           <button className="btn" disabled={busy} style={{ marginTop: 16 }}>
-            {busy ? 'Queueing…' : '🎬 Generate ad video'}
+            {busy ? 'Queueing…' : '🎬 Generate video'}
           </button>
           {error && <p className="error">{error}</p>}
           {msg && <p className="success">{msg}</p>}
@@ -130,12 +217,15 @@ export default function ProductAds() {
 
       {ads.length > 0 && (
         <>
-          <h2 style={{ margin: '32px 0 12px', fontSize: 20 }}>Your ads</h2>
+          <h2 style={{ margin: '32px 0 12px', fontSize: 20 }}>Your videos</h2>
           {ads.map((ad) => (
             <div className="card" key={ad.id} style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 240 }}>
-                  <strong>{ad.title || `Ad #${ad.id}`}</strong>
+                  <strong>{ad.title || `Video #${ad.id}`}</strong>
+                  <p className="muted" style={{ fontSize: 13, margin: '4px 0' }}>
+                    {ad.mode === 'property_tour' ? '🏠 Property tour' : ad.mode === 'similar' ? '🔗 Inspired video' : '📦 Product ad'} · {ad.resolution} · {ad.duration}s
+                  </p>
                   <p className="muted" style={{ fontSize: 13, margin: '4px 0' }}>{ad.prompt.slice(0, 110)}…</p>
                   {ad.status === 'queued' && <span className="status scheduled">queued</span>}
                   {ad.status === 'processing' && <span className="status publishing">generating…</span>}

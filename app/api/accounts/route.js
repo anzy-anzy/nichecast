@@ -26,6 +26,16 @@ export async function DELETE(req) {
   const user = getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await req.json();
+  const row = getDb().prepare('SELECT * FROM accounts WHERE id = ? AND user_id = ?').get(id, user.id);
   getDb().prepare('DELETE FROM accounts WHERE id = ? AND user_id = ?').run(id, user.id);
+
+  // Best-effort: also disconnect on Outstand's side so it stops billing/tracking it.
+  if (row?.external_id && process.env.OUTSTAND_API_KEY && (process.env.POSTING_PROVIDER || '').toLowerCase() === 'outstand') {
+    fetch(`https://api.outstand.so/v1/social-accounts/${row.external_id}`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${process.env.OUTSTAND_API_KEY}` },
+    }).catch(() => {});
+  }
+
   return NextResponse.json({ ok: true });
 }

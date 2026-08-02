@@ -14,7 +14,7 @@ export async function GET() {
 export async function POST(req) {
   const user = getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { content, media_path, account_ids, scheduled_at } = await req.json();
+  const { content, media_path, account_ids, scheduled_at, ai_generated } = await req.json();
   if (!content && !media_path) {
     return NextResponse.json({ error: 'Post needs text or media.' }, { status: 400 });
   }
@@ -25,14 +25,15 @@ export async function POST(req) {
   }
   const info = getDb()
     .prepare(
-      'INSERT INTO posts (user_id, content, media_path, account_ids, scheduled_at) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO posts (user_id, content, media_path, account_ids, scheduled_at, ai_generated) VALUES (?, ?, ?, ?, ?, ?)'
     )
     .run(
       user.id,
       content || '',
       media_path || '',
       JSON.stringify(account_ids || []),
-      when.toISOString().replace('T', ' ').slice(0, 19)
+      when.toISOString().replace('T', ' ').slice(0, 19),
+      ai_generated ? 1 : 0
     );
   return NextResponse.json({ ok: true, id: info.lastInsertRowid });
 }

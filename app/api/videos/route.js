@@ -22,11 +22,24 @@ export async function POST(req) {
   if (used >= plan.videoLimitPerMonth) {
     return NextResponse.json({ error: `Monthly video limit reached (${plan.videoLimitPerMonth} on ${plan.name}).` }, { status: 403 });
   }
-  const { niche, idea, format, voice, duration_target, brief, visual_style } = await req.json();
+  const { niche, idea, format, voice, duration_target, brief, visual_style, voice_id, download_only } = await req.json();
   if (!niche || !idea) return NextResponse.json({ error: 'Niche and idea are required.' }, { status: 400 });
   const info = db
-    .prepare('INSERT INTO videos (user_id, niche, idea, format, voice, duration_target, brief, visual_style) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(user.id, niche, idea, format === 'horizontal' ? 'horizontal' : 'vertical', voice || 'onyx', Math.min(Number(duration_target) || 45, 120), brief || '', (visual_style || '').slice(0, 60));
+    .prepare(
+      'INSERT INTO videos (user_id, niche, idea, format, voice, duration_target, brief, visual_style, voice_id, download_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run(
+      user.id,
+      niche,
+      idea,
+      format === 'horizontal' ? 'horizontal' : 'vertical',
+      voice || 'onyx',
+      Math.min(Number(duration_target) || 45, 120),
+      brief || '',
+      (visual_style || '').slice(0, 60),
+      voice_id || null,
+      download_only ? 1 : 0
+    );
   return NextResponse.json({ ok: true, id: info.lastInsertRowid });
 }
 

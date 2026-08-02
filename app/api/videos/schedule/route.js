@@ -20,7 +20,7 @@ export async function POST(req) {
   if (isNaN(when.getTime())) return NextResponse.json({ error: 'Invalid schedule time.' }, { status: 400 });
 
   const info = db
-    .prepare('INSERT INTO posts (user_id, content, media_path, account_ids, scheduled_at) VALUES (?, ?, ?, ?, ?)')
+    .prepare('INSERT INTO posts (user_id, content, media_path, account_ids, scheduled_at, ai_generated) VALUES (?, ?, ?, ?, ?, 1)')
     .run(user.id, content, video.video_path, JSON.stringify(account_ids || []), when.toISOString().replace('T', ' ').slice(0, 19));
   return NextResponse.json({ ok: true, post_id: info.lastInsertRowid });
 }

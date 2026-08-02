@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { processDuePosts } from '@/lib/posting';
 import { processVideoJobs, processAutopilot } from '@/lib/video/pipeline';
 import { processAdJobs } from '@/lib/video/ads';
+import { processCreatorJobs } from '@/lib/video/creator';
 
 export const maxDuration = 300; // video rendering can take a few minutes
 
@@ -21,7 +22,19 @@ export async function POST(req) {
     const posts = await processDuePosts();
     const videos = await processVideoJobs({ maxJobs: 1 });
     const ads = await processAdJobs({ maxJobs: 1 });
-    return NextResponse.json({ ok: true, processed: posts.length, videosRendered: videos.length, adsRendered: ads.length, autopilotQueued: autopilot.length, posts, videos, ads });
+    const creatorVideos = await processCreatorJobs({ maxJobs: 1 });
+    return NextResponse.json({
+      ok: true,
+      processed: posts.length,
+      videosRendered: videos.length,
+      adsRendered: ads.length,
+      creatorVideosRendered: creatorVideos.length,
+      autopilotQueued: autopilot.length,
+      posts,
+      videos,
+      ads,
+      creatorVideos,
+    });
   } catch (e) {
     return NextResponse.json({ error: String(e.message || e) }, { status: 500 });
   }

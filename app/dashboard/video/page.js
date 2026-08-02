@@ -10,6 +10,9 @@ export default function VideoStudio() {
   const [format, setFormat] = useState('vertical');
   const [duration, setDuration] = useState(45);
   const [visualStyle, setVisualStyle] = useState('');
+  const [voiceId, setVoiceId] = useState('');
+  const [downloadOnly, setDownloadOnly] = useState(false);
+  const [voices, setVoices] = useState([]);
   const [ideas, setIdeas] = useState([]);
   const [trends, setTrends] = useState(null);
   const [videos, setVideos] = useState([]);
@@ -28,6 +31,7 @@ export default function VideoStudio() {
     loadVideos();
     fetch('/api/accounts').then((r) => r.json()).then((d) => setAccounts(d.accounts || []));
     fetch('/api/autopilot').then((r) => r.json()).then((d) => d && !d.error && setAp(d));
+    fetch('/api/voices').then((r) => r.json()).then((d) => setVoices((d.voices || []).filter((v) => v.status === 'ready')));
     const t = setInterval(loadVideos, 8000);
     return () => clearInterval(t);
   }, []);
@@ -68,7 +72,7 @@ export default function VideoStudio() {
     const res = await fetch('/api/videos', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ niche, idea: idea.idea, format, duration_target: duration, brief, visual_style: visualStyle }),
+      body: JSON.stringify({ niche, idea: idea.idea, format, duration_target: duration, brief, visual_style: visualStyle, voice_id: voiceId || null, download_only: downloadOnly }),
     });
     const data = await res.json();
     if (!res.ok) return setError(data.error || 'Failed to queue video.');
@@ -119,6 +123,14 @@ export default function VideoStudio() {
                 <option value={45}>~45 sec</option>
                 <option value={60}>~60 sec</option>
                 <option value={90}>~90 sec</option>
+                <option value={120}>~2 min</option>
+              </select>
+            </div>
+            <div>
+              <label>Voice</label>
+              <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
+                <option value="">Default AI voice</option>
+                {voices.map((v) => <option key={v.id} value={v.id}>🎙️ {v.name} (your cloned voice)</option>)}
               </select>
             </div>
             <div>
@@ -133,6 +145,10 @@ export default function VideoStudio() {
                 <option value="comic book style">💥 Comic book (AI images)</option>
               </select>
             </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <span className={`platform-chip ${!downloadOnly ? 'on' : ''}`} onClick={() => setDownloadOnly(false)}>📤 Generate &amp; Post</span>
+            <span className={`platform-chip ${downloadOnly ? 'on' : ''}`} onClick={() => setDownloadOnly(true)}>⬇️ Generate &amp; Download only</span>
           </div>
           <label>What is your niche about? (optional but recommended — keeps ideas on-topic)</label>
           <textarea
@@ -255,9 +271,13 @@ export default function VideoStudio() {
                     {v.tags && <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>Tags: {(JSON.parse(v.tags || '[]')).slice(0, 8).join(', ')}</p>}
                     {v.next_suggestion && <p style={{ fontSize: 13, marginTop: 6 }}>💡 Next video idea: {v.next_suggestion}</p>}
                     <div className="actions" style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button className="btn small" onClick={() => schedule(v, 0)}>Post now (all accounts)</button>
-                      <button className="btn secondary small" onClick={() => schedule(v, 1)}>In 1 hour</button>
-                      <button className="btn secondary small" onClick={() => schedule(v, 24)}>Tomorrow</button>
+                      {!v.download_only && (
+                        <>
+                          <button className="btn small" onClick={() => schedule(v, 0)}>Post now (all accounts)</button>
+                          <button className="btn secondary small" onClick={() => schedule(v, 1)}>In 1 hour</button>
+                          <button className="btn secondary small" onClick={() => schedule(v, 24)}>Tomorrow</button>
+                        </>
+                      )}
                       <a className="btn secondary small" href={v.video_path} download>Download</a>
                     </div>
                   </>
