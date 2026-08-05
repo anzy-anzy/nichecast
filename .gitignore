@@ -5,3 +5,4 @@ public/uploads/
 .env.local
 install.log
 nohup.out
+.DS_Store

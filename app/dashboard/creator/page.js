@@ -2,11 +2,36 @@
 import { useEffect, useState } from 'react';
 
 const SCENARIOS = [
-  'Sitting at a modern office desk, talking to camera, professional lighting',
-  'Sitting in a cozy remote-work home setup with a laptop, talking to camera',
-  'Walking down a lively city street, talking to camera, handheld style',
-  'Standing in a bright kitchen, talking to camera',
-  'Sitting outdoors in a park on a sunny day, talking to camera',
+  {
+    name: 'Office desk',
+    icon: '💼',
+    gradient: 'linear-gradient(145deg, #1f2a44, #4a6fa5)',
+    prompt: 'Sitting at a modern office desk, talking to camera, professional lighting',
+  },
+  {
+    name: 'Remote work setup',
+    icon: '🏡',
+    gradient: 'linear-gradient(145deg, #4a3527, #b08968)',
+    prompt: 'Sitting in a cozy remote-work home setup with a laptop, talking to camera',
+  },
+  {
+    name: 'City street walk',
+    icon: '🚶',
+    gradient: 'linear-gradient(145deg, #2e2e38, #6c757d)',
+    prompt: 'Walking down a lively city street, talking to camera, handheld style',
+  },
+  {
+    name: 'Bright kitchen',
+    icon: '🍳',
+    gradient: 'linear-gradient(145deg, #4a4222, #e0c568)',
+    prompt: 'Standing in a bright kitchen, talking to camera',
+  },
+  {
+    name: 'Park, sunny day',
+    icon: '🌳',
+    gradient: 'linear-gradient(145deg, #1f3a2a, #6fae7c)',
+    prompt: 'Sitting outdoors in a park on a sunny day, talking to camera',
+  },
 ];
 
 export default function CreatorStudio() {
@@ -18,7 +43,7 @@ export default function CreatorStudio() {
 
   const [characterId, setCharacterId] = useState('');
   const [script, setScript] = useState('');
-  const [scenario, setScenario] = useState(SCENARIOS[0]);
+  const [scenario, setScenario] = useState(SCENARIOS[0].prompt);
   const [resolution, setResolution] = useState('720p');
   const [duration, setDuration] = useState(8);
   const [cost, setCost] = useState(null);
@@ -164,11 +189,21 @@ export default function CreatorStudio() {
           <label>Describe the action / mood (not literal spoken dialogue)</label>
           <textarea rows={3} placeholder="Confidently explaining a quick tip, smiling, hand gestures, energetic" value={script} onChange={(e) => setScript(e.target.value)} required />
 
-          <label>Scenario</label>
-          <select value={scenario} onChange={(e) => setScenario(e.target.value)}>
-            {SCENARIOS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <input placeholder="Or describe your own scenario…" value={scenario} onChange={(e) => setScenario(e.target.value)} style={{ marginTop: 8 }} />
+          <label>Scenario — click a sample to use it</label>
+          <div className="tpl-grid" style={{ marginBottom: 8 }}>
+            {SCENARIOS.map((s) => (
+              <div key={s.name} className={`tpl-card ${scenario === s.prompt ? 'on' : ''}`} onClick={() => setScenario(s.prompt)}>
+                <div className="tpl-thumb" style={{ background: s.gradient }}>
+                  {s.icon}
+                  <span className="play">▶</span>
+                </div>
+                <div className="tpl-meta">
+                  <div className="tpl-name">{s.name}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <input placeholder="Or describe your own scenario…" value={scenario} onChange={(e) => setScenario(e.target.value)} style={{ marginTop: 4 }} />
 
           <div className="row">
             <div>
@@ -205,24 +240,26 @@ export default function CreatorStudio() {
       {videos.length > 0 && (
         <>
           <h2 style={{ margin: '32px 0 12px', fontSize: 20 }}>Your videos</h2>
-          {videos.map((v) => (
-            <div className="card" key={v.id} style={{ marginBottom: 14 }}>
-              <strong>{v.title || v.script.slice(0, 60)}</strong>
-              <p className="muted" style={{ fontSize: 13, margin: '4px 0' }}>{v.resolution} · {v.duration}s</p>
-              {v.status === 'queued' && <span className="status scheduled">queued</span>}
-              {v.status === 'processing' && <span className="status publishing">generating…</span>}
-              {v.status === 'failed' && <p className="error">Failed: {v.error}</p>}
-              {v.status === 'ready' && (
-                <>
-                  <video src={v.video_path} controls style={{ width: '100%', maxWidth: 280, borderRadius: 8, marginTop: 8 }} />
-                  <div style={{ marginTop: 10 }}>
-                    <a className="btn secondary small" href={v.video_path} download>Download</a>
-                  </div>
-                </>
-              )}
-              {v.status !== 'processing' && <button className="btn danger small" onClick={() => remove(v.id)} style={{ marginTop: 10 }}>Delete</button>}
-            </div>
-          ))}
+          <div className="results-grid">
+            {videos.map((v) => (
+              <div className="card" key={v.id} style={{ padding: 14 }}>
+                <strong style={{ fontSize: 14 }}>{v.title || v.script.slice(0, 60)}</strong>
+                <p className="muted" style={{ fontSize: 12.5, margin: '4px 0' }}>{v.resolution} · {v.duration}s</p>
+                {v.status === 'queued' && <span className="status scheduled">queued</span>}
+                {v.status === 'processing' && <span className="status publishing">generating…</span>}
+                {v.status === 'failed' && <p className="error">Failed: {v.error}</p>}
+                {v.status === 'ready' && (
+                  <>
+                    <video src={v.video_path} controls style={{ width: '100%', aspectRatio: '9/12', objectFit: 'cover', borderRadius: 8, marginTop: 8, background: '#000' }} />
+                    <div style={{ marginTop: 10 }}>
+                      <a className="btn secondary small" href={v.video_path} download>Download</a>
+                    </div>
+                  </>
+                )}
+                {v.status !== 'processing' && <button className="btn danger small" onClick={() => remove(v.id)} style={{ marginTop: 8 }}>Delete</button>}
+              </div>
+            ))}
+          </div>
         </>
       )}
     </div>
