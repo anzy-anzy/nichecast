@@ -3,6 +3,8 @@ import { getCurrentUser } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { getPlan } from '@/lib/plans';
 import { generateSimilarVideoPrompt } from '@/lib/video/script';
+import { estimateCost, VIDEO_MODELS } from '@/lib/video/falEngine';
+import { creditsForCost, deductCredits } from '@/lib/credits';
 
 async function lookupVideo(url) {
   const endpoints = [
@@ -31,7 +33,7 @@ export async function POST(req) {
     return NextResponse.json({ error: `Your ${plan.name} plan doesn't include video generation.` }, { status: 403 });
   }
   try {
-    const { url, notes, resolution, duration, format } = await req.json();
+    const { url, notes, resolution, duration, format, model } = await req.json();
     if (!url) return NextResponse.json({ error: 'Paste a video link.' }, { status: 400 });
     const ref = await lookupVideo(url);
     if (!ref) {
@@ -40,20 +42,32 @@ export async function POST(req) {
         { status: 400 }
       );
     }
+    const useModel = VIDEO_MODELS[model] ? model : 'kling';
+    const useResolution = ['480p', '720p', '1080p'].includes(resolution) ? resolution : '720p';
+    const useDuration = Math.min(Math.max(Number(duration) || 8, 3), 30);
+    const credits = creditsForCost(estimateCost({ model: useModel, resolution: useResolution, duration: useDuration }));
+    try {
+      deductCredits(user.id, credits, `Marketing Studio: similar/${useModel}`);
+    } catch (e) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: 402 });
+    }
+
     const prompt = await generateSimilarVideoPrompt({ refTitle: ref.title, refAuthor: ref.author, notes });
     const info = getDb()
-      .prepare('INSERT INTO ads (user_id, title, prompt, photos, format, resolution, duration, mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .prepare('INSERT INTO ads (user_id, title, prompt, photos, format, resolution, duration, mode, model, credits_charged) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(
         user.id,
         `Inspired by: ${ref.title}`.slice(0, 120),
         prompt,
         '[]',
         format === 'horizontal' ? 'horizontal' : 'vertical',
-        ['480p', '720p', '1080p'].includes(resolution) ? resolution : '720p',
-        Math.min(Math.max(Number(duration) || 8, 3), 30),
-        'similar'
+        useResolution,
+        useDuration,
+        'similar',
+        useModel,
+        credits
       );
-    return NextResponse.json({ ok: true, id: info.lastInsertRowid, refTitle: ref.title, prompt });
+    return NextResponse.json({ ok: true, id: info.lastInsertRowid, refTitle: ref.title, prompt, creditsCharged: credits });
   } catch (e) {
     return NextResponse.json({ error: String(e.message || e) }, { status: 500 });
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createUser, createSession, sessionCookie } from '@/lib/auth';
+import { grantTrialCreditsIfNew } from '@/lib/credits';
 
 export async function POST(req) {
   try {
@@ -16,6 +17,7 @@ export async function POST(req) {
       }
       throw e;
     }
+    grantTrialCreditsIfNew(userId);
     const token = createSession(userId);
     const res = NextResponse.json({ ok: true });
     res.cookies.set(sessionCookie(token));

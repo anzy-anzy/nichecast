@@ -1,6 +1,7 @@
 import { getCurrentUser } from '@/lib/auth';
 import { getPlan, PLANS, videosUsedThisMonth } from '@/lib/plans';
 import { getDb } from '@/lib/db';
+import { getBalance, PLAN_CREDITS } from '@/lib/credits';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,7 @@ export default function Billing() {
   const user = getCurrentUser();
   const plan = getPlan(user);
   const used = videosUsedThisMonth(getDb(), user.id);
+  const credits = getBalance(user.id);
   const links = {
     publisher: process.env.PAYMENT_LINK_PUBLISHER || '',
     creator: process.env.PAYMENT_LINK_CREATOR || '',
@@ -18,15 +20,19 @@ export default function Billing() {
   return (
     <div>
       <h1>💳 Billing &amp; Plan</h1>
-      <p className="sub">Your current plan, usage this month, and upgrades.</p>
+      <p className="sub">Your current plan, credit balance, and upgrades.</p>
 
       <div className="card" style={{ marginBottom: 24 }}>
         <p style={{ fontSize: 14 }} className="muted">Current plan</p>
         <p style={{ fontSize: 28, fontWeight: 800 }}>{plan.name}</p>
         <div className="stat-grid" style={{ marginTop: 16, marginBottom: 0 }}>
           <div className="stat">
+            <div className="num">💰 {credits.toLocaleString()}</div>
+            <div className="lbl">Credits available</div>
+          </div>
+          <div className="stat">
             <div className="num">{used}{plan.videoLimitPerMonth ? `/${plan.videoLimitPerMonth}` : ''}</div>
-            <div className="lbl">AI videos this month</div>
+            <div className="lbl">Faceless Studio videos this month</div>
           </div>
           <div className="stat">
             <div className="num">{plan.accountLimit}</div>
@@ -37,6 +43,11 @@ export default function Billing() {
             <div className="lbl">Upload &amp; auto-post</div>
           </div>
         </div>
+        <p className="muted" style={{ fontSize: 12.5, marginTop: 14 }}>
+          Credits power Marketing Studio, Creator Studio and Image Studio — cost per generation depends on the
+          model (Kling/Seedance/Veo, Nano Banana Pro/Seedream/Flux), resolution, and duration. Faceless Studio uses
+          your plan's monthly video count instead, shown above.
+        </p>
       </div>
 
       <div className="pricing" style={{ padding: 0 }}>
@@ -49,6 +60,7 @@ export default function Billing() {
               <div className="price">${p.price}<small>/mo</small></div>
               <ul>
                 {p.canGenerateVideos && <li>{p.videoLimitPerMonth} AI videos / month</li>}
+                <li>💰 {PLAN_CREDITS[key]?.toLocaleString() || 0} credits / month</li>
                 {p.canUploadPost && <li>Upload &amp; auto-post</li>}
                 {p.autopilot && <li>🤖 Autopilot: daily auto-generate + post</li>}
                 <li>{p.accountLimit} connected accounts</li>

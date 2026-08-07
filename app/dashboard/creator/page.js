@@ -34,6 +34,12 @@ const SCENARIOS = [
   },
 ];
 
+const MODEL_OPTIONS = [
+  { key: 'kling', label: 'Kling — balanced' },
+  { key: 'seedance', label: 'Seedance — fastest + cheapest' },
+  { key: 'veo', label: 'Veo 3.1 — premium quality' },
+];
+
 export default function CreatorStudio() {
   const [characters, setCharacters] = useState([]);
   const [name, setName] = useState('');
@@ -44,6 +50,7 @@ export default function CreatorStudio() {
   const [characterId, setCharacterId] = useState('');
   const [script, setScript] = useState('');
   const [scenario, setScenario] = useState(SCENARIOS[0].prompt);
+  const [model, setModel] = useState('kling');
   const [resolution, setResolution] = useState('720p');
   const [duration, setDuration] = useState(8);
   const [cost, setCost] = useState(null);
@@ -71,12 +78,12 @@ export default function CreatorStudio() {
     fetch('/api/estimate-cost', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ resolution, duration }),
+      body: JSON.stringify({ model, resolution, duration }),
     })
       .then((r) => r.json())
       .then((d) => setCost(d))
       .catch(() => {});
-  }, [resolution, duration]);
+  }, [model, resolution, duration]);
 
   async function createCharacter(e) {
     e.preventDefault();
@@ -119,12 +126,12 @@ export default function CreatorStudio() {
     const res = await fetch('/api/creator-videos', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ character_id: characterId || null, script, scenario, resolution, duration }),
+      body: JSON.stringify({ character_id: characterId || null, script, scenario, model, resolution, duration }),
     });
     const data = await res.json();
     setBusy(false);
     if (!res.ok) return setError(data.error || 'Failed to queue video.');
-    setMsg('Queued! Rendering in the background — watch below.');
+    setMsg(`Queued — ${data.creditsCharged} credits used. Rendering in the background — watch below.`);
     setScript('');
     loadVideos();
   }
@@ -207,6 +214,12 @@ export default function CreatorStudio() {
 
           <div className="row">
             <div>
+              <label>Model</label>
+              <select value={model} onChange={(e) => setModel(e.target.value)}>
+                {MODEL_OPTIONS.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
               <label>Resolution</label>
               <select value={resolution} onChange={(e) => setResolution(e.target.value)}>
                 <option value="480p">480p — cheapest</option>
@@ -224,13 +237,13 @@ export default function CreatorStudio() {
 
           {cost && (
             <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-              Estimated cost: <strong>${cost.cost}</strong>{' '}
+              Cost: <strong>{cost.credits} credits</strong> · balance: <strong>{cost.balance}</strong>{' '}
               {!cost.liveGeneration && '— no FAL_KEY set, will render a free mock preview instead'}
             </p>
           )}
 
           <button className="btn" disabled={busy} style={{ marginTop: 12 }}>
-            {busy ? 'Queueing…' : '🎬 Generate'}
+            {busy ? 'Queueing…' : `🎬 Generate${cost ? ` — ${cost.credits} credits` : ''}`}
           </button>
           {error && <p className="error">{error}</p>}
           {msg && <p className="success">{msg}</p>}

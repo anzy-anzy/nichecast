@@ -28,6 +28,11 @@ export default function Accounts() {
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
 
+  const [pronunciations, setPronunciations] = useState([]);
+  const [pWord, setPWord] = useState('');
+  const [pReplacement, setPReplacement] = useState('');
+  const [pMsg, setPMsg] = useState('');
+
   async function load() {
     const res = await fetch('/api/accounts');
     const data = await res.json();
@@ -37,7 +42,32 @@ export default function Accounts() {
     const res = await fetch('/api/voices');
     if (res.ok) setVoices((await res.json()).voices || []);
   }
-  useEffect(() => { load(); loadVoices(); }, []);
+  async function loadPronunciations() {
+    const res = await fetch('/api/pronunciations');
+    if (res.ok) setPronunciations((await res.json()).pronunciations || []);
+  }
+  useEffect(() => { load(); loadVoices(); loadPronunciations(); }, []);
+
+  async function addPronunciation(e) {
+    e.preventDefault();
+    setPMsg('');
+    const res = await fetch('/api/pronunciations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ word: pWord, replacement: pReplacement }),
+    });
+    const data = await res.json();
+    if (!res.ok) return setPMsg(data.error || 'Failed.');
+    setPWord('');
+    setPReplacement('');
+    setPMsg('Added ✓');
+    loadPronunciations();
+  }
+
+  async function removePronunciation(id) {
+    await fetch('/api/pronunciations', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
+    loadPronunciations();
+  }
 
   async function cloneVoice(e) {
     e.preventDefault();
@@ -191,7 +221,7 @@ export default function Accounts() {
       </div>
 
       {voices.length > 0 && (
-        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <div className="card" style={{ padding: 0, overflow: 'auto', marginBottom: 24 }}>
           <table>
             <thead><tr><th>Name</th><th>Status</th><th></th></tr></thead>
             <tbody>
@@ -200,6 +230,47 @@ export default function Accounts() {
                   <td>{v.name}</td>
                   <td><span className={`status ${v.status === 'ready' ? 'posted' : v.status === 'failed' ? 'failed' : 'scheduled'}`}>{v.status}</span></td>
                   <td><button className="btn danger small" onClick={() => removeVoice(v.id)}>Remove</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h1 style={{ fontSize: 22 }}>🗣️ Pronunciation Dictionary</h1>
+      <p className="sub">
+        Fix AI mispronunciation of Cameroonian/African names and words without re-cloning a voice. Define how a
+        word should sound phonetically — it's swapped in right before the voice-over speaks it (subtitles keep the
+        original spelling). Works with cloned voices and OpenAI voices.
+      </p>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <form onSubmit={addPronunciation}>
+          <div className="row">
+            <div>
+              <label>Word or name (as written)</label>
+              <input required placeholder="e.g. Ébolowa" value={pWord} onChange={(e) => setPWord(e.target.value)} />
+            </div>
+            <div>
+              <label>Phonetic spelling (how it should sound)</label>
+              <input required placeholder="e.g. Eh-boh-loh-vah" value={pReplacement} onChange={(e) => setPReplacement(e.target.value)} />
+            </div>
+          </div>
+          <button className="btn" style={{ marginTop: 12 }}>+ Add pronunciation</button>
+          {pMsg && <p className={pMsg.includes('✓') ? 'success' : 'error'}>{pMsg}</p>}
+        </form>
+      </div>
+
+      {pronunciations.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+          <table>
+            <thead><tr><th>Word</th><th>Pronounced as</th><th></th></tr></thead>
+            <tbody>
+              {pronunciations.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.word}</td>
+                  <td className="muted">{p.replacement}</td>
+                  <td><button className="btn danger small" onClick={() => removePronunciation(p.id)}>Remove</button></td>
                 </tr>
               ))}
             </tbody>

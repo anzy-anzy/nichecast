@@ -39,12 +39,18 @@ const MODES = [
 ];
 
 const RES_INFO = { '480p': 'Cheapest', '720p': 'Recommended', '1080p': 'Sharpest' };
+const MODEL_OPTIONS = [
+  { key: 'kling', label: 'Kling — balanced' },
+  { key: 'seedance', label: 'Seedance — fastest + cheapest' },
+  { key: 'veo', label: 'Veo 3.1 — premium quality' },
+];
 
 export default function MarketingStudio() {
   const [mode, setMode] = useState('ad'); // 'ad' | 'property_tour' | 'similar'
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState(AD_TEMPLATES[0].prompt);
   const [format, setFormat] = useState('vertical');
+  const [model, setModel] = useState('kling');
   const [resolution, setResolution] = useState('720p');
   const [duration, setDuration] = useState(8);
   const [files, setFiles] = useState([]);
@@ -72,12 +78,12 @@ export default function MarketingStudio() {
     fetch('/api/estimate-cost', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ resolution, duration: mode === 'property_tour' ? duration : duration }),
+      body: JSON.stringify({ model, resolution, duration }),
     })
       .then((r) => r.json())
       .then(setCost)
       .catch(() => {});
-  }, [resolution, duration, mode]);
+  }, [model, resolution, duration, mode]);
 
   async function uploadFiles(fileList) {
     const paths = [];
@@ -103,11 +109,11 @@ export default function MarketingStudio() {
         const res = await fetch('/api/ads/similar', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ url: refUrl, notes: refNotes, resolution, duration, format }),
+          body: JSON.stringify({ url: refUrl, notes: refNotes, model, resolution, duration, format }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
-        setMsg(`Queued — inspired by "${data.refTitle}". Watch below.`);
+        setMsg(`Queued — ${data.creditsCharged} credits used. Inspired by "${data.refTitle}". Watch below.`);
         setRefUrl('');
         setRefNotes('');
       } else {
@@ -116,11 +122,11 @@ export default function MarketingStudio() {
         const res = await fetch('/api/ads', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ title, prompt, photos, format, resolution, duration, mode }),
+          body: JSON.stringify({ title, prompt, photos, format, model, resolution, duration, mode }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to queue');
-        setMsg('Queued! Rendering in the background — watch below.');
+        setMsg(`Queued — ${data.creditsCharged} credits used. Rendering in the background — watch below.`);
         setFiles([]);
       }
       load();
@@ -153,7 +159,7 @@ export default function MarketingStudio() {
   return (
     <div>
       <h1>🛍️ Marketing Studio</h1>
-      <p className="sub">AI ad videos, property/restaurant tours, or "make one like this" from a link — pick resolution and duration, see the cost before you generate.</p>
+      <p className="sub">AI ad videos, property/restaurant tours, or "make one like this" from a link — pick a model, resolution and duration, see the credit cost before you generate.</p>
 
       <div className="mode-grid">
         {MODES.map((m) => (
@@ -217,6 +223,12 @@ export default function MarketingStudio() {
 
           <div className="row">
             <div>
+              <label>Model</label>
+              <select value={model} onChange={(e) => setModel(e.target.value)}>
+                {MODEL_OPTIONS.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
               <label>Format</label>
               <select value={format} onChange={(e) => setFormat(e.target.value)}>
                 <option value="vertical">Vertical (TikTok/Reels)</option>
@@ -241,13 +253,13 @@ export default function MarketingStudio() {
 
           {cost && (
             <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-              Estimated cost: <strong>${cost.cost}</strong>{' '}
+              Cost: <strong>{cost.credits} credits</strong> · balance: <strong>{cost.balance}</strong>{' '}
               {!cost.liveGeneration && '— no FAL_KEY set, will render a free mock preview instead'}
             </p>
           )}
 
           <button className="btn" disabled={busy} style={{ marginTop: 16 }}>
-            {busy ? 'Queueing…' : '🎬 Generate video'}
+            {busy ? 'Queueing…' : `🎬 Generate video${cost ? ` — ${cost.credits} credits` : ''}`}
           </button>
           {error && <p className="error">{error}</p>}
           {msg && <p className="success">{msg}</p>}
@@ -262,7 +274,7 @@ export default function MarketingStudio() {
               <div className="card" key={ad.id} style={{ padding: 14 }}>
                 <strong style={{ fontSize: 14 }}>{ad.title || `Video #${ad.id}`}</strong>
                 <p className="muted" style={{ fontSize: 12.5, margin: '4px 0' }}>
-                  {ad.mode === 'property_tour' ? '🏠 Property tour' : ad.mode === 'similar' ? '🔗 Inspired video' : '📦 Product ad'} · {ad.resolution} · {ad.duration}s
+                  {ad.mode === 'property_tour' ? '🏠 Property tour' : ad.mode === 'similar' ? '🔗 Inspired video' : '📦 Product ad'} · {ad.model || 'kling'} · {ad.resolution} · {ad.duration}s
                 </p>
                 {ad.status === 'queued' && <span className="status scheduled">queued</span>}
                 {ad.status === 'processing' && <span className="status publishing">generating…</span>}
