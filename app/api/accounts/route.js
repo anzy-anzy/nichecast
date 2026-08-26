@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getDb } from '@/lib/db';
+import { envOrSetting } from '@/lib/settings';
 
 export async function GET() {
   const user = getCurrentUser();
@@ -30,10 +31,11 @@ export async function DELETE(req) {
   getDb().prepare('DELETE FROM accounts WHERE id = ? AND user_id = ?').run(id, user.id);
 
   // Best-effort: also disconnect on Outstand's side so it stops billing/tracking it.
-  if (row?.external_id && process.env.OUTSTAND_API_KEY && (process.env.POSTING_PROVIDER || '').toLowerCase() === 'outstand') {
+  const outstandKey = envOrSetting('OUTSTAND_API_KEY');
+  if (row?.external_id && outstandKey && (envOrSetting('POSTING_PROVIDER') || '').toLowerCase() === 'outstand') {
     fetch(`https://api.outstand.so/v1/social-accounts/${row.external_id}`, {
       method: 'DELETE',
-      headers: { authorization: `Bearer ${process.env.OUTSTAND_API_KEY}` },
+      headers: { authorization: `Bearer ${outstandKey}` },
     }).catch(() => {});
   }
 

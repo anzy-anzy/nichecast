@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { buildAuthorizeUrl, appUrl } from '@/lib/posting/outstandOAuth';
+import { envOrSetting } from '@/lib/settings';
 
 // Starts the embedded "Connect account" flow: redirects the user's browser
 // straight to the real platform's OAuth consent screen (via Outstand), so
@@ -12,7 +13,7 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const platform = searchParams.get('platform');
 
-  if (!process.env.OUTSTAND_API_KEY || !process.env.OUTSTAND_ORG_ID) {
+  if (!envOrSetting('OUTSTAND_API_KEY') || !envOrSetting('OUTSTAND_ORG_ID')) {
     return NextResponse.redirect(
       `${appUrl()}/dashboard/accounts?connect_error=${encodeURIComponent('Outstand is not configured yet — add OUTSTAND_API_KEY and OUTSTAND_ORG_ID.')}`
     );
